@@ -1,0 +1,15 @@
+ 
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "kms:Decrypt",
+                "kms:Encrypt"
+            ],
+            "Resource": "arn:aws:kms:ap-southeast-2:980242709187:key/d288b9cb-24f7-472f-a5a3-da6ef2b866e4"
+        }
+    ]
+}
