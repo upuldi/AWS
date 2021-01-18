@@ -9,6 +9,6 @@ sudo chown -R root:www /var/www
 sudo chmod 2775 /var/www
 sudo find /var/www -type d -exec chmod 2775 {} +
 sudo find /var/www -type f -exec chmod 0664 {} +
-sudo echo "<html> <head> <title>Sample Html</title> <meta content=""> <style></style> </head> <body> <h1>Funnelback Admin</h1> </body> </html>" > /var/www/html/index.html
+sudo echo "<html> <head> <title>Sample Html</title> <meta content=""> <style></style> </head> <body> <h1>Server One Sydney</h1> </body> </html>" > /var/www/html/index.html
 sudo perl -pi -e 's/^#?Listen 80$/Listen 8443/' /etc/httpd/conf/httpd.conf
 sudo systemctl restart httpd
