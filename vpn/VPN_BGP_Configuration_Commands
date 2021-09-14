@@ -1,0 +1,28 @@
+root@..:/home/ubuntu/demo_assets# vtysh
+
+Hello, this is FRRouting (version 8.1-dev-chriselsen-g3a1ef6784).
+Copyright 1996-2005 Kunihiro Ishiguro, et al.
+
+This is a git build of frr-8.1-dev-460-g3a1ef6784
+Associated branch(es):
+        local:master
+        github/frrouting/frr.git/master
+
+..# conf t
+..(config)# frr defaults traditional
+..(config)# router bgp 65016
+..(config-router)# neighbor 169.254.68.133 remote-as 64512
+..(config-router)# neighbor 169.254.202.173 remote-as 64512
+..(config-router)# no bgp ebgp-requires-policy
+..(config-router)# address-family ipv4 unicast
+..(config-router-af)# redistribute connected
+..(config-router-af)# exit
+..(config-router)# exit
+..(config)# exit
+..# wr
+Note: this version of vtysh never writes vtysh.conf
+Building Configuration...
+Integrated configuration saved to /etc/frr/frr.conf
+[OK]
+..# 
+
