@@ -1,0 +1,823 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Westpac VPC
+
+Parameters:
+
+  ProjectCode:
+    Description: Tenant Code
+    Type: String
+   # AllowedPattern: ""
+
+  TennatCIDRRange:
+    Description: CIDR Range Perfix XX.YY
+    Type: String
+   # AllowedPattern: "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}"
+    ConstraintDescription: Must be a valid CIDR range Perfix XX.YY eg:- 172.23
+    #Default: "10.0"
+
+  VpcEnvironment:
+    Description: Environment representing the VPC
+    Type: String
+    AllowedValues:
+      - DEV
+      - SIT
+      - UAT
+      - SVP
+      - VRT
+      - PRD
+    Default: "DEV"
+
+  AvailabilityZone1:
+    Description: The first availability zone in the region
+    Type: AWS::EC2::AvailabilityZone::Name
+    ConstraintDescription: Must be a valid availability zone
+
+  # EC2KeyPairName:
+  #   Description: Ec2 Key used
+  #   Type: String
+  #   Default: hoa_public
+
+  AvailabilityZone2:
+    Description: The second availability zone in the region
+    Type: AWS::EC2::AvailabilityZone::Name
+    ConstraintDescription: Must be a valid availability zone
+
+
+  SingleNatGateway:
+    Description: Set to true to only install one NAT gateway
+    Type: String
+    ConstraintDescription: Value must be true or false
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
+  Broker:
+    Description: Set to true to only install one NAT gateway
+    Type: String
+    AllowedValues:
+      - CMS-PRD
+      - OBI-PRD
+      - CMS-NP
+      - OBI-NP
+
+Conditions:
+  CreateSingleNatGateway: !Equals [ !Ref SingleNatGateway, true ]
+  CreateMultipleNatGateways: !Not [ Condition: CreateSingleNatGateway ]
+
+Mappings:
+
+  BastionBrokerMap:
+    CMS-NP: 
+      VpcId: vpc-c16d07a4
+      PeerOwnerId:  "070094686375"
+      SSHSourceRange: 10.44.130.0/23
+      PeerRoleARN:  arn:aws:iam::070094686375:role/CrossAccountPeeringAcceptRoleFromHOA      
+    OBI-NP: #These values need to be changed accordingly
+      VpcId: vpc-12345 
+      PeerOwnerId: "12345678"
+      SSHSourceRange: 10.44.194.251/32
+      PeerRoleARN:  arn:aws:iam::976544762878:role/CrossAccountVpnPeeringConnectionsFromHoa
+    CMS-PRD: 
+      VpcId: vpc-c16d07a4
+      PeerOwnerId:  "070094686375"
+      SSHSourceRange: 10.44.130.0/23
+      PeerRoleARN:  arn:aws:iam::070094686375:role/CrossAccountPeeringAcceptRoleFromHOA
+    OBI-PRD: #These values need to be changed accordingly
+      VpcId: vpc-12345 
+      PeerOwnerId: "12345678"
+      SSHSourceRange: 11.22.33.44/16
+      PeerRoleARN:  arn:aws:iam::976544762878:role/CrossAccountVpnPeeringConnectionsFromHoa
+
+  EnvironmentMap:
+    DEV:
+      CIDR: .1.0/24
+      ENVTAG: "dev"
+      PublicA: .1.0/26
+      PublicB: .1.64/26
+      PrivateA: .1.128/26
+      PrivateB: .1.192/26
+   
+
+    SIT:
+      CIDR: .2.0/24
+      ENVTAG: "sit"
+      PublicA: .2.0/26
+      PublicB: .2.64/26
+      PrivateA: .2.128/26
+      PrivateB: .2.192/26
+
+    UAT:
+      CIDR: .3.0/24
+      ENVTAG: “uat”
+      PublicA: .3.0/26
+      PublicB: .3.64/26
+      PrivateA: .3.128/26
+      PrivateB: .3.192/26
+
+    SVP:
+      CIDR: .4.0/24
+      ENVTAG: "svp"
+      PublicA: .4.0/26
+      PublicB: .4.64/26
+      PrivateA: .4.128/26
+      PrivateB: .4.192/26
+
+    VRT:
+      CIDR: .5.0/24
+      ENVTAG: “vrt”
+      PublicA: .5.0/26
+      PublicB: .5.64/26
+      PrivateA: .5.128/26
+      PrivateB: .5.192/26
+
+    PRD:
+      CIDR: .6.0/24
+      ENVTAG: “prd”
+      PublicA: .6.0/26
+      PublicB: .6.64/26
+      PrivateA: .6.128/26
+      PrivateB: .6.192/26
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Join [ "", [ !Ref TennatCIDRRange, !FindInMap [ EnvironmentMap, !Ref VpcEnvironment, CIDR ]] ]
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+      - Key: Stack
+        Value: !Ref "AWS::StackName"
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "vpc" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ]] ]
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Join [ "", [ !Ref TennatCIDRRange, !FindInMap [ EnvironmentMap, !Ref VpcEnvironment, PublicA ]] ]
+      AvailabilityZone: !Ref AvailabilityZone1
+      Tags:
+      - Key: Stack
+        Value: !Sub "${AWS::StackName}-PublicSubnet1"
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "subnet" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "public","a" ] ]
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Join [ "", [ !Ref TennatCIDRRange, !FindInMap [ EnvironmentMap, !Ref VpcEnvironment, PublicB ]] ]
+      AvailabilityZone: !Ref AvailabilityZone2
+      Tags:
+      - Key: Stack
+        Value: !Sub "${AWS::StackName}-PublicSubnet2"
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "subnet" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "public","b" ] ]
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Join [ "", [ !Ref TennatCIDRRange, !FindInMap [ EnvironmentMap, !Ref VpcEnvironment, PrivateA ]] ]
+      AvailabilityZone: !Ref AvailabilityZone1
+      Tags:
+      - Key: Stack
+        Value: !Sub "${AWS::StackName}-PrivateSubnet1"
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "subnet" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "private","a" ] ]
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Join [ "", [ !Ref TennatCIDRRange, !FindInMap [ EnvironmentMap, !Ref VpcEnvironment, PrivateB ]] ]
+      AvailabilityZone: !Ref AvailabilityZone2
+      Tags:
+      - Key: Stack
+        Value: !Sub "${AWS::StackName}-PrivateSubnet2"
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "subnet" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "private","b" ] ]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Stack
+          Value: !Sub "${AWS::StackName}-igw"
+        - Key: Name
+          Value: !Join [ "_", [ !Ref ProjectCode, "igw" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ] ] ]
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn: 
+      - VPC
+      - InternetGateway
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # VPCPeeringConnectionToBastions:
+  #   Type: AWS::EC2::VPCPeeringConnection
+  #   DependsOn:
+  #     - VPC
+  #   Properties:
+  #     VpcId:  !Ref VPC
+  #     PeerVpcId:  !FindInMap [ BastionBrokerMap, !Ref Broker, VpcId ]
+  #     PeerOwnerId:  !FindInMap [ BastionBrokerMap, !Ref Broker, PeerOwnerId ]
+  #     PeerRoleArn:  !FindInMap [ BastionBrokerMap, !Ref Broker, PeerRoleARN ]
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Join [ "_", [ !Ref ProjectCode, "peer" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ] ] ]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Project
+        Value: !Ref ProjectCode
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "rt" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "public","a" ] ]
+
+  PublicRouteIGW:
+    Type: AWS::EC2::Route
+    DependsOn: 
+      - PublicRouteTable
+      - InternetGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # PublicRoutePCX:
+  #   Type: AWS::EC2::Route
+  #   DependsOn:
+  #     - VPCPeeringConnectionToBastions
+  #     - PublicRouteTable
+  #   Properties:
+  #     RouteTableId: !Ref PublicRouteTable
+  #     DestinationCidrBlock:  !FindInMap [ BastionBrokerMap, !Ref Broker, SSHSourceRange ]
+  #     VpcPeeringConnectionId: !Ref VPCPeeringConnectionToBastions
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn: 
+      - PublicSubnetA
+      - PublicRouteTable
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - PublicSubnetB
+      - PublicRouteTable
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetsNacl:
+    Type: AWS::EC2::NetworkAcl
+    Properties: 
+      Tags: 
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "nacl" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "public" ] ]
+      VpcId: !Ref VPC    
+
+  PublicSubnetNetworkAclAssociation1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      NetworkAclId: !Ref PublicSubnetsNacl
+
+  PublicSubnetNetworkAclAssociation2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      NetworkAclId: !Ref PublicSubnetsNacl
+
+  publicHttp80AllowIn:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PublicSubnetsNacl
+        RuleNumber: '100'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'false'
+        CidrBlock: 0.0.0.0/0
+        PortRange:
+          From: '80'
+          To: '80'
+
+  publicHttps443AllowIn:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PublicSubnetsNacl
+        RuleNumber: '110'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'false'
+        CidrBlock: 0.0.0.0/0
+        PortRange:
+          From: '443'
+          To: '443'
+
+  publicSSH22AllowIn:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PublicSubnetsNacl
+        RuleNumber: '120'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'false'
+        CidrBlock: 10.44.130.0/23
+        PortRange:
+          From: '22'
+          To: '22'
+
+  publicEphemeralAllowIn:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PublicSubnetsNacl
+        RuleNumber: '130'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'false'
+        CidrBlock: 0.0.0.0/0
+        PortRange:
+          From: '1024'
+          To: '65535'
+
+  publicHttp80AllowOut:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PublicSubnetsNacl
+        RuleNumber: '100'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'true'
+        CidrBlock: 0.0.0.0/0
+        PortRange:
+          From: '80'
+          To: '80'
+
+  publicHttps443AllowOut:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PublicSubnetsNacl
+        RuleNumber: '110'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'true'
+        CidrBlock: 0.0.0.0/0
+        PortRange:
+          From: '443'
+          To: '443'
+
+
+  publicEphemeralAllowOut:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PublicSubnetsNacl
+        RuleNumber: '130'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'true'
+        CidrBlock: 0.0.0.0/0
+        PortRange:
+          From: '1024'
+          To: '65535'
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable access to the bastion host
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        # ssh from broker prod
+      - CidrIp: !FindInMap [ BastionBrokerMap, !Ref Broker, SSHSourceRange ] 
+        IpProtocol: tcp
+        ToPort: 22
+        FromPort: 22
+        # ssh from broker non-prod
+      - CidrIp: 10.44.194.0/23 
+        IpProtocol: tcp
+        ToPort: 22
+        FromPort: 22
+      - CidrIp: !FindInMap [ BastionBrokerMap, !Ref Broker, SSHSourceRange ] 
+        IpProtocol: tcp
+        ToPort: 5432
+        FromPort: 5432
+        # http
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp
+        ToPort: 80
+        FromPort: 80
+        # https
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: tcp
+        ToPort: 443
+        FromPort: 443
+
+      # SecurityGroupEgress:
+      # - CidrIp: 0.0.0.0/0
+      #   IpProtocol: tcp
+      #   ToPort: 80
+      #   FromPort: 80
+      # - CidrIp: 0.0.0.0/0
+      #   IpProtocol: tcp
+      #   ToPort: 443
+      #   FromPort: 443
+      # - CidrIp: 0.0.0.0/0
+      #   IpProtocol: udp
+      #   ToPort: 123
+      #   FromPort: 123
+      Tags:
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "sg" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "bastion"] ]
+
+
+
+  NatEIP1:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway1:
+    DependsOn: 
+      - NatEIP1
+      - PublicSubnetA
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP1.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+      - Key: Project
+        Value: !Ref ProjectCode
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "nat" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "public","a" ] ]
+
+  NatEIP2:
+    DependsOn: VPCGatewayAttachment
+    Condition: CreateMultipleNatGateways
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway2:
+    DependsOn: 
+      - NatEIP2
+      - PublicSubnetB
+    Condition: CreateMultipleNatGateways
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP2.AllocationId
+      SubnetId: !Ref PublicSubnetB
+      Tags:
+      - Key: Project
+        Value: !Ref ProjectCode
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "nat" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "public","b" ] ]
+
+  NatRouteTable1:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Project
+        Value: !Ref ProjectCode
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "rt" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "private","a" ] ]
+
+  NatRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: 
+      - NatRouteTable1
+      - NatGateway1
+    Properties:
+      RouteTableId: !Ref NatRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  # PrivateRoutePCX1:
+  #   Type: AWS::EC2::Route
+  #   DependsOn: 
+  #     - VPCPeeringConnectionToBastions
+  #     - NatRouteTable1
+  #   Properties:
+  #     RouteTableId: !Ref NatRouteTable1
+  #     DestinationCidrBlock: !FindInMap [ BastionBrokerMap, !Ref Broker, SSHSourceRange ]
+  #     VpcPeeringConnectionId: !Ref VPCPeeringConnectionToBastions    
+
+  NatRouteTable2:
+    Type: AWS::EC2::RouteTable
+    DependsOn:
+      - VPC
+    Condition: CreateMultipleNatGateways
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Project
+        Value: !Ref ProjectCode
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "rt" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "private","b" ] ]
+
+  NatRoute2:
+    Type: AWS::EC2::Route
+    DependsOn: 
+      - NatRouteTable2
+      - NatGateway2
+    Condition: CreateMultipleNatGateways
+    Properties:
+      RouteTableId: !Ref NatRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+
+  # PrivateRoutePCX2:
+  #   Type: AWS::EC2::Route
+  #   DependsOn: 
+  #     - VPCPeeringConnectionToBastions
+  #     - NatRouteTable2
+  #   Properties:
+  #     RouteTableId: !Ref NatRouteTable2
+  #     DestinationCidrBlock: !FindInMap [ BastionBrokerMap, !Ref Broker, SSHSourceRange ]
+  #     VpcPeeringConnectionId: !Ref VPCPeeringConnectionToBastions     
+
+  PrivateSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DependsOn:
+      - PrivateSubnetA
+      - NatRouteTable1
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref NatRouteTable1
+
+  PrivateSubnetRouteTableAssociationSingleNatGateway:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateSingleNatGateway
+    DependsOn:
+      - PrivateSubnetB
+      - NatRouteTable1
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref NatRouteTable1
+
+  PrivateSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateMultipleNatGateways
+    DependsOn:
+      - PrivateSubnetB
+      - NatRouteTable2
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref NatRouteTable2
+
+  PrivateSubnetsNacl:
+    Type: AWS::EC2::NetworkAcl
+    Properties: 
+      Tags: 
+      - Key: Name
+        Value: !Join [ "_", [ !Ref ProjectCode, "nacl" ,!FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ], "private" ] ]
+      VpcId: !Ref VPC    
+
+  PrivateSubnetNetworkAclAssociation1:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      NetworkAclId: !Ref PrivateSubnetsNacl
+
+  PrivateSubnetNetworkAclAssociation2:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      NetworkAclId: !Ref PrivateSubnetsNacl
+
+  privateSSH22AllowIn:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PrivateSubnetsNacl
+        RuleNumber: '100'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'false'
+        CidrBlock: 10.44.130.0/23
+        PortRange:
+          From: '22'
+          To: '22'
+
+  privatePostgresAllowIn:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PrivateSubnetsNacl
+        RuleNumber: '110'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'false'
+        CidrBlock: 10.44.130.0/23
+        PortRange:
+          From: '3636'
+          To: '3636'
+
+  privateEphemeralAllowIn:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PrivateSubnetsNacl
+        RuleNumber: '120'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'false'
+        CidrBlock: 0.0.0.0/0
+        PortRange:
+          From: '1024'
+          To: '65535'
+
+  privateElastiCacheAllowIn:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PrivateSubnetsNacl
+        RuleNumber: '130'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'false'
+        CidrBlock: 10.44.130.0/23
+        PortRange:
+          From: '6379'
+          To: '6379'
+
+
+  # privateHttp80AllowOut:
+  #   Type: AWS::EC2::NetworkAclEntry
+  #   Properties:
+  #       NetworkAclId: !Ref PrivateSubnetsNacl
+  #       RuleNumber: '100'
+  #       Protocol: "6"
+  #       RuleAction: allow
+  #       Egress: 'true'
+  #       CidrBlock: 0.0.0.0/0
+  #       PortRange:
+  #         From: '80'
+  #         To: '80'
+
+  privateHttps443AllowOut:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PrivateSubnetsNacl
+        RuleNumber: '100'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'true'
+        CidrBlock: 0.0.0.0/0
+        PortRange:
+          From: '443'
+          To: '443'
+
+  # privateSSH22AllowOut:
+  #   Type: AWS::EC2::NetworkAclEntry
+  #   Properties:
+  #       NetworkAclId: !Ref PrivateSubnetsNacl
+  #       RuleNumber: '120'
+  #       Protocol: "6"
+  #       RuleAction: allow
+  #       Egress: 'true'
+  #       CidrBlock: 10.44.130.0/23
+  #       PortRange:
+  #         From: '22'
+  #         To: '22'
+
+  privateEphemeralAllowOut:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+        NetworkAclId: !Ref PrivateSubnetsNacl
+        RuleNumber: '110'
+        Protocol: "6"
+        RuleAction: allow
+        Egress: 'true'
+        CidrBlock:  0.0.0.0/0
+        PortRange:
+          From: '1024'
+          To: '65535'
+
+  # privatePostgresAllowOut:
+  #   Type: AWS::EC2::NetworkAclEntry
+  #   Properties:
+  #       NetworkAclId: !Ref PrivateSubnetsNacl
+  #       RuleNumber: '140'
+  #       Protocol: "6"
+  #       RuleAction: allow
+  #       Egress: 'true'
+  #       CidrBlock: 10.44.130.0/23
+  #       PortRange:
+  #         From: '3636'
+  #         To: '3636'
+
+Outputs:
+
+  Name:
+    Description: VPC Stack Name
+    Value: !Ref AWS::StackName
+    Export:
+      Name: !Sub ${AWS::StackName}-Name
+
+  ProjectCode:
+    Description: Project Code
+    Value: !Ref ProjectCode
+    Export:
+      Name: !Sub ${AWS::StackName}-ProjectCode
+
+  Environment:
+    Description: Environment
+    Value: !FindInMap [ EnvironmentMap, !Ref VpcEnvironment, ENVTAG ]
+    Export:
+      Name: !Sub ${AWS::StackName}-Environment
+
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcID"
+
+  VpcCidr:
+    Description: Vpc cidr block
+    Value:  !Join [ "", [ !Ref TennatCIDRRange, !FindInMap [ EnvironmentMap, !Ref VpcEnvironment, CIDR ]] ]
+    Export:
+      Name: !Sub "${AWS::StackName}-vpc-cidr"
+
+  PublicSubnetA:
+    Description: Public subnet 1 ID
+    Value: !Ref PublicSubnetA
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnetAID"
+
+  PublicSubnetB:
+    Description: Public subnet 2 ID
+    Value: !Ref PublicSubnetB
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnetBID"
+
+  PrivateSubnetA:
+    Description: Private subnet 1 ID
+    Value: !Ref PrivateSubnetA
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnetAID"
+
+  PrivateSubnetB:
+    Description: Private subnet 2 ID
+    Value: !Ref PrivateSubnetB
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnetBID"
+
+  # VPCPeeringConnection:
+  #   Description: VPC Peering Connection
+  #   Value: !Ref VPCPeeringConnectionToBastions
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-VPCPeeringConnection"
+
+
+  # ELBSecurityGroup:
+  #   Description: Security group ID for Internet-facing ELB
+  #   Value: !GetAtt ELBSecurityGroup.GroupId
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-ELBSecurityGroupID"
+
+  # AppSecurityGroup:
+  #   Description: Security group ID for app behind ELB
+  #   Value: !GetAtt AppSecurityGroup.GroupId
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-AppSecurityGroupID"
+
+  BastionSecurityGroup:
+    Description: Security group ID for bastion host
+    Value: !GetAtt BastionSecurityGroup.GroupId
+    Export:
+      Name: !Sub "${AWS::StackName}-BastionGroupID"
+
+  # DatabaseSecurityGroup:
+  #   Description: Security group ID for RDS database
+  #   Value: !GetAtt DbSecurityGroup.GroupId
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-DatabaseGroupID"
+
+  # ELBIngressPort:
+  #   Description: ELB ingress port
+  #   Value: !Ref ELBIngressPort
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-ELBIngressPort"
+
+  # AppIngressPort:
+  #   Description: App ingress port
+  #   Value: !Ref AppIngressPort
+  #   Export:
+  #     Name: !Sub "${AWS::StackName}-AppIngressPort"
