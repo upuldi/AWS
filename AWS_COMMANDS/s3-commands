@@ -1,0 +1,14 @@
+
+//list objects
+aws s3 ls
+aws s3 ls s3://bucket-name 
+
+
+//S3
+aws s3api create-bucket --bucket my-bucket --region us-east-1
+aws s3api delete-bucket --bucket testdeva4lbucketcli --region us-east-1 --profile A4L-DEV
+
+
+//S3 Delete Bucket Policy
+aws s3api delete-bucket-policy --bucket private-vpc-privatecats-ltj6h0qab5gi
+
