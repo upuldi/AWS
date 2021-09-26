@@ -15,3 +15,8 @@ aws s3api delete-bucket-policy --bucket private-vpc-privatecats-ltj6h0qab5gi
 
 //put objects
 aws s3api put-object --bucket "upuldi.a4l.sometest.bucket" --key "this-is-a-file-with-encryption" --server-side-encryption AES256  --body pyshpslp_most_recent.pdf --profile A4L-MASTER
+
+
+//Pre-Signed URLs
+aws s3 presign s3://upuldi.a4l.media/test-file.JPG --expires-in 180
+
