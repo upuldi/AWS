@@ -12,3 +12,6 @@ aws s3api delete-bucket --bucket testdeva4lbucketcli --region us-east-1 --profil
 //S3 Delete Bucket Policy
 aws s3api delete-bucket-policy --bucket private-vpc-privatecats-ltj6h0qab5gi
 
+
+//put objects
+aws s3api put-object --bucket "upuldi.a4l.sometest.bucket" --key "this-is-a-file-with-encryption" --server-side-encryption AES256  --body pyshpslp_most_recent.pdf --profile A4L-MASTER
