@@ -1,0 +1,20 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::436511036811:user/iamadmin"
+            },
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:s3:us-east-1:436511036811:accesspoint/test-ap-one/object/*",
+                "arn:aws:s3:us-east-1:436511036811:accesspoint/test-ap-one" 
+                ]
+        }
+    ]
+}
