@@ -3,10 +3,18 @@
 aws s3 ls
 aws s3 ls s3://bucket-name 
 
+//Get Objects
+aws s3api get-object --bucket upuldi-a4l-accesspoint-demo-bucket --key issue.jpeg output.jpeg
+
+//Put Objects
+aws s3api put-object --bucket upuldi-a4l-accesspoint-demo-bucket ---key testFile.txt --body testFile.txt
 
 //S3
 aws s3api create-bucket --bucket my-bucket --region us-east-1
 aws s3api delete-bucket --bucket testdeva4lbucketcli --region us-east-1 --profile A4L-DEV
+
+//S3 Access via access point 
+aws s3 ls s3://arn:aws:s3:us-east-1:436511036811:accesspoint/test-ap-one
 
 
 //S3 Delete Bucket Policy

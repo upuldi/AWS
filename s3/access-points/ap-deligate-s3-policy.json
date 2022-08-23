@@ -1,0 +1,13 @@
+{
+    "Version": "2012-10-17",
+    "Statement" : [
+    {
+        "Effect": "Allow",
+        "Principal" : { "AWS": "*" },
+        "Action" : "*",
+        "Resource" : [ "arn:aws:s3:::upuldi-a4l-accesspoint-demo-bucket", "arn:aws:s3:::upuldi-a4l-accesspoint-demo-bucket/*"],
+        "Condition": {
+            "StringEquals" : { "s3:DataAccessPointAccount" : "436511036811" }
+        }
+    }]
+}
